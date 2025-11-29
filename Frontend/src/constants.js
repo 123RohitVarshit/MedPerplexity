@@ -61,10 +61,10 @@ export const THEMES = {
 
 // Mock Data
 export const INITIAL_ROUNDS = [
-  { id: 1, type: 'Guideline', tagColor: 'bg-rose-500/80', title: 'New Beta-Blocker Protocol', summary: 'Updated guidelines for heart failure management suggest initiating therapy at lower doses for elderly patients.', source: 'ACC Guidelines 2024', isBookmarked: false },
-  { id: 2, type: 'Research', tagColor: 'bg-blue-500/80', title: 'AI in Early Sepsis Detection', summary: 'Machine learning models show 94% accuracy in predicting sepsis onset 12 hours prior to clinical symptoms.', source: 'NEJM • 2 days ago', isBookmarked: true },
-  { id: 3, type: 'Research', tagColor: 'bg-blue-500/80', title: 'Gluten & Autoimmune markers', summary: 'Study reveals correlation between gluten intake and inflammatory markers in non-celiac patients.', source: 'Lancet • 5 days ago', isBookmarked: false },
-  { id: 4, type: 'Guideline', tagColor: 'bg-rose-500/80', title: 'Pediatric Asthma Updates', summary: 'GINA 2024 report emphasizes SMART therapy (Single Maintenance and Reliever Therapy) for children > 6 years.', source: 'GINA Report', isBookmarked: false },
+  { id: 1, type: 'Guideline', tagColor: 'bg-rose-500/80', title: 'New Beta-Blocker Protocol', summary: 'Updated guidelines for heart failure management suggest initiating therapy at lower doses for elderly patients.', source: 'ACC Guidelines 2024', url: 'https://www.acc.org/Latest-in-Cardiology/Clinical-Guidance', isBookmarked: false },
+  { id: 2, type: 'Research', tagColor: 'bg-blue-500/80', title: 'AI in Early Sepsis Detection', summary: 'Machine learning models show 94% accuracy in predicting sepsis onset 12 hours prior to clinical symptoms.', source: 'NEJM • 2 days ago', url: 'https://pubmed.ncbi.nlm.nih.gov/?term=artificial+intelligence+sepsis+detection', isBookmarked: true },
+  { id: 3, type: 'Research', tagColor: 'bg-blue-500/80', title: 'Gluten & Autoimmune markers', summary: 'Study reveals correlation between gluten intake and inflammatory markers in non-celiac patients.', source: 'Lancet • 5 days ago', url: 'https://pubmed.ncbi.nlm.nih.gov/?term=gluten+autoimmune+inflammatory+markers', isBookmarked: false },
+  { id: 4, type: 'Guideline', tagColor: 'bg-rose-500/80', title: 'Pediatric Asthma Updates', summary: 'GINA 2024 report emphasizes SMART therapy (Single Maintenance and Reliever Therapy) for children > 6 years.', source: 'GINA Report', url: 'https://ginasthma.org/reports/', isBookmarked: false },
 ];
 
 export const MOCK_PATIENTS = [

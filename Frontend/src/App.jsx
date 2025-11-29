@@ -7,6 +7,7 @@ import DailyRounds from './pages/DailyRounds';
 import PatientList from './pages/PatientList';
 import PatientDetail from './pages/PatientDetail';
 import { THEMES, INITIAL_ROUNDS, MOCK_PATIENTS, PATIENT_DETAILS_MAP } from './constants';
+import { getPatients, getDailyRounds, getPatientDetail, clearAuthToken, checkAPIHealth } from './api';
 import './index.css'; 
 
 const App = () => {
@@ -16,9 +17,12 @@ const App = () => {
   const theme = isDarkMode ? THEMES.dark : THEMES.light;
   
   const [view, setView] = useState('rounds'); 
-  const [rounds, setRounds] = useState(INITIAL_ROUNDS);
+  const [rounds, setRounds] = useState([]);
+  const [patients, setPatients] = useState([]);
   const [patientFilter, setPatientFilter] = useState('Today'); 
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [apiConnected, setApiConnected] = useState(false);
   
   const [activePatient, setActivePatient] = useState(null);
   const [patientDetailData, setPatientDetailData] = useState(null);
@@ -26,34 +30,99 @@ const App = () => {
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
-  const handleLogin = () => {
+  // Check API health on mount
+  useEffect(() => {
+    checkAPIHealth().then(setApiConnected);
+  }, []);
+
+  // Load data when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadDailyRounds();
+      loadPatients();
+    }
+  }, [isAuthenticated]);
+
+  // Reload patients when filter changes
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadPatients();
+    }
+  }, [patientFilter]);
+
+  const loadDailyRounds = async () => {
+    try {
+      const data = await getDailyRounds();
+      setRounds(data.length > 0 ? data : INITIAL_ROUNDS);
+    } catch (error) {
+      console.error('Failed to load daily rounds:', error);
+      setRounds(INITIAL_ROUNDS);
+    }
+  };
+
+  const loadPatients = async () => {
+    try {
+      setLoading(true);
+      const data = await getPatients(patientFilter);
+      setPatients(data.length > 0 ? data : MOCK_PATIENTS);
+    } catch (error) {
+      console.error('Failed to load patients:', error);
+      setPatients(MOCK_PATIENTS);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogin = (userData) => {
     setIsAuthenticated(true);
     setView('rounds');
   };
 
   const handleLogout = () => {
+    clearAuthToken();
     setIsAuthenticated(false);
     setActivePatient(null);
     setMessages([]);
+    setRounds([]);
+    setPatients([]);
   };
 
   const toggleBookmark = (id) => {
     setRounds(prev => prev.map(item => item.id === id ? { ...item, isBookmarked: !item.isBookmarked } : item));
   };
 
-  const handlePatientClick = (p) => {
+  const handlePatientClick = async (p) => {
     setActivePatient(p);
-    setPatientDetailData(PATIENT_DETAILS_MAP[p.id] || PATIENT_DETAILS_MAP[1]);
     setView('detail');
     setMessages([{ 
       id: 0, 
       type: 'bot', 
-      text: `**Context Loaded: ${p.name}**\n\nI've analyzed the vitals and recent history. ${p.condition === 'Chronic Kidney Disease' ? 'Creatinine levels are trending downwards (improving).' : 'Vitals are stable.'} How can I assist?` 
+      text: `**Context Loaded: ${p.name}**\n\nLoading patient data...` 
     }]);
+
+    // Try to load detailed patient data from backend
+    try {
+      const detailData = await getPatientDetail(p.id);
+      setPatientDetailData(detailData);
+      setMessages([{ 
+        id: 0, 
+        type: 'bot', 
+        text: `**Context Loaded: ${p.name}**\n\nI've analyzed the vitals and recent history. Vitals are ${p.status.toLowerCase()}. How can I assist?` 
+      }]);
+    } catch (error) {
+      console.error('Failed to load patient details:', error);
+      // Fallback to mock data
+      setPatientDetailData(PATIENT_DETAILS_MAP[1]);
+      setMessages([{ 
+        id: 0, 
+        type: 'bot', 
+        text: `**Context Loaded: ${p.name}**\n\nUsing cached patient data. How can I assist?` 
+      }]);
+    }
   };
 
   if (!isAuthenticated) {
-    return <LoginView onLogin={handleLogin} theme={theme} />;
+    return <LoginView onLogin={handleLogin} theme={theme} apiConnected={apiConnected} />;
   }
 
   return (
@@ -117,12 +186,13 @@ const App = () => {
 
         {view === 'patients' && (
           <PatientList 
-            patients={MOCK_PATIENTS}
+            patients={patients}
             setPatient={handlePatientClick}
             theme={theme}
             isDarkMode={isDarkMode}
             filter={patientFilter}
             setFilter={setPatientFilter}
+            loading={loading}
           />
         )}
 

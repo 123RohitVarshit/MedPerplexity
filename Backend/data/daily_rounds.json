@@ -1,0 +1,22 @@
+{
+  "date": "2025-11-29",
+  "doctor_id": "DOC-001",
+  "morning_brief": {
+    "critical_patients": 2,
+    "new_admissions": 3,
+    "pending_labs": 5,
+    "scheduled_procedures": 2
+  },
+  "updates": [
+    {
+      "patient_id": "PAT-001",
+      "update": "Blood pressure stabilized overnight",
+      "priority": "medium"
+    },
+    {
+      "patient_id": "PAT-002",
+      "update": "Requires immediate ECG review",
+      "priority": "high"
+    }
+  ]
+}

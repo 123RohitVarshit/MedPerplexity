@@ -2,14 +2,15 @@ import json
 import re
 import os
 import difflib
+import xml.etree.ElementTree as ET
 from typing import List, Dict, Any, Optional
-from Bio import Entrez
+import requests
 from dotenv import load_dotenv
 
 # --- CONFIGURATION ---
 load_dotenv()
-Entrez.email = os.getenv("ENTREZ_EMAIL", "pratham16salgaonkar@gmail.com")
-Entrez.tool = "MedPerplexity_ResearchAgent"
+ENTREZ_EMAIL = os.getenv("ENTREZ_EMAIL", "pratham16salgaonkar@gmail.com")
+NCBI_API_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
 
 JAN_AUSHADHI_DB_PATH = "data/jan_aushadhi.json"
 
@@ -18,118 +19,113 @@ JAN_AUSHADHI_DB_PATH = "data/jan_aushadhi.json"
 # ==========================================
 
 def clean_xml_text(text: str) -> str:
-    """Removes HTML Tags (<b>, <i>, <sup>) and extra whitespace."""
+    """Removes HTML Tags and extra whitespace."""
     if not text:
         return ""
     clean = re.sub(r'<[^>]+>', '', text)
     return " ".join(clean.split())
 
-def get_pub_date(article_data: Dict) -> str:
-    """Extracts publication date with a fallback to Electronic Date."""
-    try:
-        # 1. Try Standard Print Date
-        pub_date_tag = article_data.get("MedlineCitation", {}).get("Article", {}).get("Journal", {}).get("JournalIssue", {}).get("PubDate", {})
-        if "Year" in pub_date_tag:
-            return f"{pub_date_tag['Year']} {pub_date_tag.get('Month', '')} {pub_date_tag.get('Day', '')}".strip()
-        if "MedlineDate" in pub_date_tag:
-            return pub_date_tag["MedlineDate"]
-
-        # 2. Try Electronic Date (Backup)
-        article_date_list = article_data.get("MedlineCitation", {}).get("Article", {}).get("ArticleDate", [])
-        if article_date_list and isinstance(article_date_list, list):
-            date_data = article_date_list[0]
-            if "Year" in date_data:
-                return f"{date_data['Year']} {date_data.get('Month', '')} {date_data.get('Day', '')} (Epub)".strip()
-        return "Unknown Date"
-    except Exception:
-        return "Unknown Date"
-
-def extract_abstract_text(article_data: Dict) -> str:
-    """Parses complex PubMed XML abstracts and cleans them."""
-    try:
-        abstract_obj = article_data.get("MedlineCitation", {}).get("Article", {}).get("Abstract", {})
-        abstract_text_list = abstract_obj.get("AbstractText", [])
-        
-        if not abstract_text_list:
-            return "No Abstract Available."
-
-        combined_text = ""
-        
-        # Handle List of Sections (Structured Abstract)
-        if isinstance(abstract_text_list, list):
-            full_text = []
-            for section in abstract_text_list:
-                text_content = str(section)
-                if hasattr(section, "attributes") and "Label" in section.attributes:
-                    label = section.attributes["Label"]
-                    text_content = f"{label.upper()}: {text_content}"
-                full_text.append(text_content)
-            combined_text = "\n".join(full_text)
-        elif isinstance(abstract_text_list, str):
-            combined_text = abstract_text_list
-        else:
-            combined_text = str(abstract_text_list)
-
-        return clean_xml_text(combined_text)
-    except Exception as e:
-        return f"Error parsing abstract: {str(e)}"
-
 def search_pubmed_ids(query: str, strict_mode: bool = True) -> List[str]:
-    """Finds PMIDs for a query."""
-    # 1. Date Filter (Last ~10 years to Future)
+    """Finds PMIDs using NCBI E-Utilities API."""
     date_filter = ' AND ("2015/01/01"[Date - Publication] : "3000"[Date - Publication])'
-    # 2. Quality Filter
     quality_filter = ' AND (Systematic Review[pt] OR Guideline[pt] OR Clinical Trial[pt] OR Meta-Analysis[pt])' if strict_mode else ""
-    # 3. Language Filter
     language_filter = " AND English[Language]"
     
     final_query = f"({query}){quality_filter}{date_filter}{language_filter}"
     
+    params = {
+        "db": "pubmed",
+        "term": final_query,
+        "retmax": 5,
+        "sort": "relevance",
+        "retmode": "json",
+        "email": ENTREZ_EMAIL
+    }
+    
     try:
-        handle = Entrez.esearch(db="pubmed", term=final_query, retmax=5, sort="relevance")
-        record = Entrez.read(handle)
-        handle.close()
-        return record.get("IdList", [])
+        response = requests.get(f"{NCBI_API_BASE}esearch.fcgi", params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        return data.get("esearchresult", {}).get("idlist", [])
     except Exception as e:
         print(f"Error in Search: {e}")
         return []
 
 def fetch_article_details(id_list: List[str]) -> List[Dict[str, Any]]:
-    """Fetches full details for a list of PMIDs."""
-    if not id_list: return []
+    """Fetches full details for PMIDs using XML parsing."""
+    if not id_list:
+        return []
+    
+    params = {
+        "db": "pubmed",
+        "id": ",".join(id_list),
+        "retmode": "xml",
+        "email": ENTREZ_EMAIL
+    }
+    
     try:
-        handle = Entrez.efetch(db="pubmed", id=",".join(id_list), retmode="xml")
-        xml_data = Entrez.read(handle)
-        handle.close()
+        response = requests.get(f"{NCBI_API_BASE}efetch.fcgi", params=params, timeout=15)
+        response.raise_for_status()
         
+        root = ET.fromstring(response.content)
         formatted_articles = []
-        if "PubmedArticle" in xml_data:
-            for article in xml_data["PubmedArticle"]:
-                medline = article["MedlineCitation"]
-                article_info = medline["Article"]
+        
+        for article_elem in root.findall(".//PubmedArticle"):
+            try:
+                # Extract PMID
+                pmid_elem = article_elem.find(".//PMID")
+                pmid = pmid_elem.text if pmid_elem is not None else "Unknown"
                 
-                title = clean_xml_text(article_info.get("ArticleTitle", "No Title"))
-                pub_date = get_pub_date(article)
-                journal = article_info.get("Journal", {}).get("ISOAbbreviation", "") or article_info.get("Journal", {}).get("Title", "Unknown Journal")
-                abstract = extract_abstract_text(article)
+                # Extract Title
+                title_elem = article_elem.find(".//ArticleTitle")
+                title = clean_xml_text(title_elem.text if title_elem is not None else "No Title")
+                
+                # Extract Journal
+                journal_elem = article_elem.find(".//Journal/ISOAbbreviation")
+                if journal_elem is None:
+                    journal_elem = article_elem.find(".//Journal/Title")
+                journal = journal_elem.text if journal_elem is not None else "Unknown Journal"
+                
+                # Extract Date
+                pub_date_elem = article_elem.find(".//PubDate")
+                year = pub_date_elem.find("Year")
+                month = pub_date_elem.find("Month")
+                pub_date = f"{year.text if year is not None else 'Unknown'} {month.text if month is not None else ''}".strip()
+                
+                # Extract Abstract
+                abstract_texts = article_elem.findall(".//AbstractText")
+                if abstract_texts:
+                    abstract_parts = []
+                    for abs_text in abstract_texts:
+                        label = abs_text.get("Label", "")
+                        text = abs_text.text or ""
+                        if label:
+                            abstract_parts.append(f"{label.upper()}: {text}")
+                        else:
+                            abstract_parts.append(text)
+                    abstract = clean_xml_text("\n".join(abstract_parts))
+                else:
+                    abstract = "No Abstract Available."
                 
                 formatted_articles.append({
-                    "pmid": str(medline["PMID"]),
+                    "pmid": pmid,
                     "title": title,
                     "journal": journal,
                     "pub_date": pub_date,
                     "abstract": abstract,
-                    "url": f"https://pubmed.ncbi.nlm.nih.gov/{medline['PMID']}/"
+                    "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
                 })
+            except Exception as e:
+                print(f"Error parsing article: {e}")
+                continue
+        
         return formatted_articles
     except Exception as e:
         print(f"Error in Fetch: {e}")
         return []
 
 def query_pubmed_realtime(query: str) -> str:
-    """
-    Main entry point for Agents. Returns JSON string of results.
-    """
+    """Main entry point for PubMed research. Returns JSON string."""
     print(f"🔎 Researching: {query}...")
     pmids = search_pubmed_ids(query, strict_mode=True)
     
@@ -254,7 +250,7 @@ def search_jan_aushadhi(query_drug: str, medicine_database: Optional[List[Dict]]
 # ==========================================
 # 🧪 TEST AREA
 # ==========================================
-if _name_ == "_main_":
+if __name__ == "__main__":
     # Test 1: PubMed
     print("\n--- Testing PubMed ---")
     print(query_pubmed_realtime("Clopidogrel Omeprazole interaction"))

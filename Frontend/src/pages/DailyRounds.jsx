@@ -27,7 +27,14 @@ const DailyRounds = ({ rounds, toggleBookmark, theme, searchQuery }) => {
             <p className={`text-sm ${theme.textMuted} mb-4 leading-relaxed line-clamp-3`}>{item.summary}</p>
             <div className="flex items-center justify-between mt-auto pt-4 border-t border-white/10">
               <span className={`text-xs ${theme.textMuted}`}>{item.source}</span>
-              <button className="text-xs font-bold text-white hover:underline bg-white/10 px-2 py-1 rounded border border-white/10">Read Full</button>
+              <a 
+                href={item.url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-xs font-bold text-white hover:underline bg-white/10 px-2 py-1 rounded border border-white/10 hover:bg-white/20 transition-colors"
+              >
+                Read Full
+              </a>
             </div>
           </Card>
         ))}
