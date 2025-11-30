@@ -57,7 +57,6 @@ A sophisticated AI-powered clinical decision support system that leverages multi
 - **Lucide React 0.469.0** - Beautiful icon library
 - **Recharts 2.14.1** - Data visualization library
 - **jsPDF 2.5.2** - PDF generation
-- **React Speech Recognition 3.10.0** - Voice input support
 - **Tailwind CSS** - Utility-first CSS framework
 
 ### Backend
@@ -142,7 +141,6 @@ Backend will run on `http://localhost:8000`
   "lucide-react": "^0.469.0",
   "recharts": "^2.14.1",
   "jspdf": "^2.5.2",
-  "react-speech-recognition": "^3.10.0"
 }
 ```
 
